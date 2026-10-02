@@ -9,6 +9,7 @@ const Sherd = () => import('@/views/sherd/index.vue')
 const Bone = () => import('@/views/bone/index.vue')
 const Flotation = () => import('@/views/flotation/index.vue')
 const Dating = () => import('@/views/dating/index.vue')
+const DatingDetail = () => import('@/views/dating/detail.vue')
 const Survey = () => import('@/views/survey/index.vue')
 const Photo = () => import('@/views/photo/index.vue')
 const Diary = () => import('@/views/diary/index.vue')
@@ -32,6 +33,7 @@ const router = createRouter({
     { path: '/bone', name: 'bone', component: Bone },
     { path: '/flotation', name: 'flotation', component: Flotation },
     { path: '/dating', name: 'dating', component: Dating },
+    { path: '/dating/:id', name: 'dating-detail', component: DatingDetail },
     { path: '/survey', name: 'survey', component: Survey },
     { path: '/photo', name: 'photo', component: Photo },
     { path: '/diary', name: 'diary', component: Diary },
