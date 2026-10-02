@@ -1,3 +1,4 @@
+import { applyDatingConclusionsToFinds, rejudgeDatingRows } from './dating-rules'
 import { SEED_ROWS } from './seed'
 import type { EntryRow } from './types'
 
@@ -8,22 +9,45 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
+/**
+ * 测年送检判定口径调整后，存量数据在读取时统一重判一遍：
+ * 送检单按送检日期与报告收到日的前后关系重判（已出报告的校正年代不重算），
+ * 校验结论随记录落库，并同步到出土物台账。重判是幂等的，已判过的数据不会再变。
+ */
+function migrateStoredRows(rows: Record<string, EntryRow[]>): Record<string, EntryRow[]> {
+  const dating = rejudgeDatingRows(rows['dating'] ?? [])
+  const find = applyDatingConclusionsToFinds(dating, rows['find'] ?? [])
+  if (
+    JSON.stringify(dating) === JSON.stringify(rows['dating'] ?? []) &&
+    JSON.stringify(find) === JSON.stringify(rows['find'] ?? [])
+  ) {
+    return rows
+  }
+  return { ...rows, dating, find }
+}
+
 function readStorage(): Record<string, EntryRow[]> {
   const fallback = clone(SEED_ROWS)
   if (typeof window === 'undefined' || !window.localStorage) {
-    return fallback
+    return migrateStoredRows(fallback)
   }
   const raw = window.localStorage.getItem(STORAGE_KEY)
   if (!raw) {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(fallback))
-    return fallback
+    const seeded = migrateStoredRows(fallback)
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded))
+    return seeded
   }
   try {
     const parsed = JSON.parse(raw) as Record<string, EntryRow[]>
-    return { ...fallback, ...parsed }
+    const migrated = migrateStoredRows({ ...fallback, ...parsed })
+    if (JSON.stringify(migrated) !== JSON.stringify({ ...fallback, ...parsed })) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated))
+    }
+    return migrated
   } catch {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(fallback))
-    return fallback
+    const seeded = migrateStoredRows(fallback)
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded))
+    return seeded
   }
 }
 
@@ -49,7 +73,13 @@ export function saveRows(key: string, rows: EntryRow[]): void {
 }
 
 export function resetRows(key: string): EntryRow[] {
-  const rows = clone(SEED_ROWS[key] ?? [])
+  let rows = clone(SEED_ROWS[key] ?? [])
+  if (key === 'dating') {
+    rows = rejudgeDatingRows(rows)
+    saveRows(key, rows)
+    saveRows('find', applyDatingConclusionsToFinds(rows, listRows('find')))
+    return rows
+  }
   saveRows(key, rows)
   return rows
 }
